@@ -260,19 +260,6 @@ nav {
   color: var(--color-energy-green);
   letter-spacing: 0.06em; text-transform: uppercase;
 }
-.float-tag {
-  position: absolute;
-  background: var(--color-white);
-  border-radius: 8px;
-  padding: 12px 16px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-  font-size: 12px; font-weight: 600;
-  color: var(--color-deep-navy);
-  white-space: nowrap;
-  animation: float 4s ease-in-out infinite;
-}
-.float-tag-1 { top: 20px; right: -30px; animation-delay: 0s; }
-.float-tag-2 { bottom: 60px; left: -40px; animation-delay: 2s; }
 
 /* ── TRUST BAR ── */
 .trust-bar {
