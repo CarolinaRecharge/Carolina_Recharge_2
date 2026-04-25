@@ -59,7 +59,12 @@ nav {
 /* ── HERO ── */
 .hero {
   min-height: 100vh;
-  background: var(--navy-dark);
+  background-color: var(--navy-dark);
+  background-image:
+    linear-gradient(to right, rgba(15,32,96,0.90) 0%, rgba(15,32,96,0.70) 52%, rgba(15,32,96,0.45) 100%),
+    url('images/hero-bg.jpg');
+  background-size: cover;
+  background-position: center;
   display: grid;
   grid-template-columns: 1fr 1fr;
   position: relative;
@@ -72,7 +77,7 @@ nav {
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 60px 60px;
-  opacity: 0.6;
+  opacity: 0.25;
 }
 .hero::after {
   content: '';
@@ -199,17 +204,6 @@ nav {
   opacity: 0;
   animation: fadeIn 1s ease forwards 0.8s;
   overflow: visible;
-}
-.charger-unit-img {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translateX(-90%) translateY(-50%);
-  width: 520px;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0;
-  animation: fadeIn 1s ease forwards 1.4s;
 }
 .charger-card {
   background: rgba(255,255,255,0.04);
