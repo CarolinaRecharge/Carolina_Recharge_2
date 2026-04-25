@@ -202,9 +202,9 @@ nav {
 }
 .charger-unit-img {
   position: absolute;
-  top: -160px;
+  top: -280px;
   left: 50%;
-  transform: translateX(-80%);
+  transform: translateX(-90%);
   width: 520px;
   z-index: 0;
   pointer-events: none;
