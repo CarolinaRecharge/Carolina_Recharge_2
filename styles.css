@@ -190,6 +190,7 @@ nav {
   align-items: center;
   justify-content: center;
   padding: 80px 48px 80px 24px;
+  overflow: visible;
 }
 .hero-visual {
   position: relative;
@@ -197,6 +198,18 @@ nav {
   max-width: 420px;
   opacity: 0;
   animation: fadeIn 1s ease forwards 0.8s;
+  overflow: visible;
+}
+.charger-unit-img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translateX(-90%) translateY(-50%);
+  width: 520px;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  animation: fadeIn 1s ease forwards 1.4s;
 }
 .charger-card {
   background: rgba(255,255,255,0.04);
@@ -205,6 +218,7 @@ nav {
   padding: 40px 36px;
   backdrop-filter: blur(8px);
   position: relative;
+  z-index: 1;
   overflow: hidden;
 }
 .charger-card::before {
