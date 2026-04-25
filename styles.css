@@ -62,7 +62,7 @@ nav {
   background-color: var(--navy-dark);
   background-image:
     linear-gradient(to right, rgba(15,32,96,0.90) 0%, rgba(15,32,96,0.70) 52%, rgba(15,32,96,0.45) 100%),
-    url('images/hero-bg.jpg');
+    url('images/Charger-underground.png');
   background-size: cover;
   background-position: center;
   display: grid;
