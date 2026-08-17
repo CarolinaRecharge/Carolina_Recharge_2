@@ -485,6 +485,7 @@ section { padding: 100px 80px; }
   display: grid; grid-template-columns: 1fr 1.4fr;
   gap: 80px; align-items: center;
 }
+.proof-stats-col { display: flex; flex-direction: column; }
 .proof-stats {
   display: grid; grid-template-columns: 1fr 1fr;
   gap: 2px;
@@ -493,6 +494,13 @@ section { padding: 100px 80px; }
 }
 .proof-stat { background: var(--color-white); padding: 36px 28px; text-align: center; }
 .proof-stat-val { font-size: 48px; font-weight: 800; color: var(--color-electric-blue); line-height: 1; margin-bottom: 8px; letter-spacing: -0.03em; }
+/* Unit suffix keeps multi-word values inside the quadrant without shrinking the figure */
+.stat-unit { font-size: 22px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }
+.proof-note {
+  margin-top: 16px;
+  font-size: 12px; font-weight: 400; line-height: 1.65;
+  color: var(--color-slate-gray);
+}
 .proof-stat-label { font-size: 12px; font-weight: 600; color: var(--color-slate-gray); text-transform: uppercase; letter-spacing: 0.06em; line-height: 1.5; }
 .proof-content .section-title { margin-bottom: 20px; }
 .proof-body { font-size: 17px; font-weight: 400; color: #475569; line-height: 1.75; margin-bottom: 32px; }
@@ -861,6 +869,7 @@ footer {
 
   .proof-stat { padding: 26px 16px; }
   .proof-stat-val { font-size: 36px; }
+  .stat-unit { font-size: 17px; }
   .who-card { padding: 30px 26px; }
 
   .form-row { grid-template-columns: 1fr; gap: 20px; }

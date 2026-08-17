@@ -351,6 +351,15 @@ The current offering. Each step stands on its own; customers choose how far to g
 
 **Terms:** The Site Feasibility Review fee credits in full against a Full Site Assessment booked within 90 days. Portfolio pricing available for five or more properties.
 
+**Published service claims — keep new copy consistent with these.** The home page stat grid commits to two things in public:
+
+| Claim | Where it appears |
+|---|---|
+| Written findings within **5 days of the site visit** | `.proof-stats` quadrant |
+| Remote monitoring, fault response, and portal administration **included for year one, extendable on retainer** | `.proof-stats` quadrant + `.proof-note` footnote |
+
+Do not publish a different turnaround figure elsewhere on the site without changing both.
+
 > 🔒 **Fee amounts are internal.** As of this version, **the public site lists the services and deliverables but does not publish fee amounts** — only fee *structures* ("flat fee", "optional", "year one included"). Publishing rates is the founder's call. **Ask before putting dollar figures for our services on the site.**
 >
 > This does not apply to *project* cost figures like the $20,000–100,000 service-upgrade range, which are third-party costs and are published deliberately.
