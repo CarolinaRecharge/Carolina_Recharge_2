@@ -456,11 +456,19 @@ Actual repository contents:
   /images
     logo-horizontal.svg    ← Primary logo — do not modify paths or viewBox
     logo-stacked.svg       ← Stacked variant
+    favicon.svg            ← Icon-only mark, derived from the logo path (see below)
+    favicon-32.png         ← 32×32 raster fallback
+    apple-touch-icon.png   ← 180×180 home-screen icon
     wall-charger.png       ← Hero decorative image
     charger-unit.png       ← Unused; retained from earlier revision
 ```
 
-Nice-to-have assets not currently in the repo: `favicon.ico`, `og-image.png` (1200×630), `logo-horizontal.png` fallback, `logo-icon-only.svg`.
+### Favicon
+`favicon.svg` reuses the **same Census boundary path** as the logo, filled rather than stroked (a 2px stroke vanishes at 16px) on a `--navy-dark` rounded tile, with the Triad node enlarged so it survives downscaling. It is a **derived asset, not the logo** — the no-recolor rule in §2 applies to the logo files, which are untouched.
+
+If the boundary path ever changes, regenerate the favicon from `logo-horizontal.svg` rather than editing it by hand, and re-render the two PNGs from the SVG. Every page needs all three `<link>` tags plus `<meta name="theme-color" content="#0F2060">`.
+
+Still missing: `og-image.png` (1200×630) for social sharing previews.
 
 ---
 
