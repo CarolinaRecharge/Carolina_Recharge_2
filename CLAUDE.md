@@ -429,6 +429,13 @@ Use Electric Blue (`#0A7AFF`) horizontal rules or left-border accents on callout
 - Hover: Deep Navy `#1E3A8A` (or white on dark backgrounds)
 - Never use underlines in navigation — only in inline body text links
 
+### Fixed Nav And Anchor Offsets
+The nav is `position: fixed`, so an anchor jump lands the target section's top edge underneath it. Every jump target (`#services`, `#process`, `#about`, `#contact`) therefore carries `scroll-margin-top: calc(var(--nav-h) + 24px)`. **A new section with an `id` that anything links to needs to be added to that selector**, or its heading will sit under the nav.
+
+`--nav-h` is the single source of truth for nav height (72px, 64px at ≤768px). Use it rather than repeating the pixel value, so scroll offsets can never drift out of sync with the nav.
+
+The form's post-submit scroll targets `#contact` — not the confirmation panel — precisely so it inherits that offset.
+
 ### Responsive
 Breakpoints live at the bottom of `styles.css`: **1080px** (two-column layouts collapse), **900px** (cards stack, ladder rows stack, decorative charger image hides), **768px** (nav text links collapse to the CTA only, section padding drops, form rows stack), **480px** (fine tuning). A `prefers-reduced-motion` block disables the reveal animations. **Any new multi-column section needs a rule in these blocks.**
 

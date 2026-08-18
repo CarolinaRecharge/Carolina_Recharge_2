@@ -594,7 +594,11 @@
           form.hidden = true;
           success.hidden = false;
           const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-          success.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+          /* Scroll to the section, not the panel: #contact carries the
+             scroll-margin-top that clears the fixed nav, so the heading stays
+             readable instead of sliding up underneath it. */
+          document.getElementById('contact')
+            .scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
           success.focus({ preventScroll: true });
           return;
         }

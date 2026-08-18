@@ -7,11 +7,16 @@
   --color-energy-green:  #10B981;
   --color-charge-orange: #F59E0B;
   --navy-dark:           #0F2060;
+  --nav-h:               72px;
   --grid-line:           rgba(10, 122, 255, 0.08);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { scroll-behavior: smooth; }
+/* The nav is fixed, so an anchor jump would otherwise park the section's top
+   edge underneath it and crowd the heading. Hold every jump target clear of
+   the nav, plus a little breathing room. */
+#services, #process, #about, #contact { scroll-margin-top: calc(var(--nav-h) + 24px); }
 body {
   font-family: 'Montserrat', Inter, Arial, sans-serif;
   background: var(--color-white);
@@ -25,7 +30,7 @@ nav {
   top: 0; left: 0; right: 0;
   z-index: 100;
   padding: 0 48px;
-  height: 72px;
+  height: var(--nav-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -876,8 +881,9 @@ footer {
 }
 
 @media (max-width: 768px) {
+  :root { --nav-h: 64px; }
   section { padding: 64px 24px; }
-  nav { padding: 0 20px; height: 64px; }
+  nav { padding: 0 20px; }
   /* Logo scales by width so it can never crowd the CTA off-screen. */
   .nav-logo { flex: 0 1 auto; min-width: 0; margin-right: 12px; }
   .nav-logo img { height: auto; width: 100%; max-width: 190px; }
