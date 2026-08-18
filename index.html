@@ -457,9 +457,9 @@
       Start with a 25-minute call. We'll talk through your property and what's driving the question, then follow up with a written one-page summary of preliminary findings. No obligation, and no equipment conversation until the capacity answer is in your hands.
     </p>
 
-    <form class="contact-form reveal reveal-delay-3" action="https://formspree.io/f/mkjwqezy" method="POST">
+    <div class="form-wrap reveal reveal-delay-3">
+    <form class="contact-form" id="assessment-form" action="https://formspree.io/f/mkjwqezy" method="POST">
       <input type="hidden" name="_subject" value="New assessment request — carolinarecharge.com">
-      <input type="hidden" name="_next" value="https://carolinarecharge.com/thank-you.html">
       <input type="text" name="_gotcha" class="gotcha" tabindex="-1" autocomplete="off" aria-hidden="true">
 
       <div class="form-row">
@@ -494,11 +494,30 @@
         <textarea id="message" name="message" rows="4" placeholder="Tenant requests, an existing charger that stopped working, a renovation already underway — whatever prompted the search."></textarea>
       </div>
 
-      <button type="submit" class="btn-primary form-submit">
+      <p class="form-error" id="form-error" role="alert" hidden>
+        <span id="form-error-msg"></span>
+        <a href="mailto:daniel.black@carolinarecharge.com">Email Daniel directly →</a>
+      </p>
+
+      <button type="submit" class="btn-primary form-submit" id="form-submit">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-        Request a 25-Minute Call
+        <span class="form-submit-label">Request a 25-Minute Call</span>
       </button>
     </form>
+
+    <div class="form-success" id="form-success" tabindex="-1" hidden>
+      <div class="confirm-mark">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h3>Got It. We'll Be In Touch.</h3>
+      <p>Your request is in. Daniel reads these directly and will follow up within one business day to schedule the 25-minute call.</p>
+      <ol class="confirm-steps">
+        <li><span>01</span> We'll reach out to put 25 minutes on the calendar, usually within a business day.</li>
+        <li><span>02</span> On the call we'll cover the property, the parking, and what's driving the question.</li>
+        <li><span>03</span> You'll get a written one-page summary of preliminary findings afterward — capacity first, equipment later.</li>
+      </ol>
+    </div>
+    </div>
 
     <p class="cta-alt reveal reveal-delay-4">
       Or email Daniel directly at <a href="mailto:daniel.black@carolinarecharge.com">daniel.black@carolinarecharge.com</a>
@@ -540,6 +559,61 @@
   window.addEventListener('scroll', () => {
     nav.style.boxShadow = window.scrollY > 40 ? '0 4px 24px rgba(0,0,0,0.08)' : 'none';
   });
+
+  /* Contact form submits in the background so the visitor stays on the page and
+     gets a branded confirmation either way. With JS off, the form still posts
+     normally to Formspree and lands on their hosted confirmation page. */
+  const form = document.getElementById('assessment-form');
+  if (form) {
+    const btn     = document.getElementById('form-submit');
+    const label   = btn.querySelector('.form-submit-label');
+    const errBox  = document.getElementById('form-error');
+    const errMsg  = document.getElementById('form-error-msg');
+    const success = document.getElementById('form-success');
+    const idle    = label.textContent;
+    const FALLBACK = "That did not send. You can email Daniel directly and we will pick it up from there.";
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      errBox.hidden = true;
+      btn.disabled = true;
+      label.textContent = 'Sending…';
+
+      try {
+        const res = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          headers: { 'Accept': 'application/json' }
+        });
+
+        if (res.ok) {
+          /* GA4 conversion point. There is no analytics property on this site yet;
+             when one is added, the generate_lead event fires HERE, not on
+             thank-you.html — that page is no longer part of the submit flow.
+             gtag('event', 'generate_lead', { form_name: 'assessment_request' }); */
+          form.hidden = true;
+          success.hidden = false;
+          const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          success.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+          success.focus({ preventScroll: true });
+          return;
+        }
+
+        const data = await res.json().catch(() => null);
+        /* textContent, not innerHTML — the response is not ours to trust as markup. */
+        errMsg.textContent = (data && Array.isArray(data.errors) && data.errors.length)
+          ? data.errors.map(e => e.message).join('. ') + '.'
+          : FALLBACK;
+        errBox.hidden = false;
+      } catch (err) {
+        errMsg.textContent = "That did not send — check your connection and try again.";
+        errBox.hidden = false;
+      } finally {
+        btn.disabled = false;
+        label.textContent = idle;
+      }
+    });
+  }
 </script>
 </body>
 </html>
