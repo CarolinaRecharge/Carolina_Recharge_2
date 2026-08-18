@@ -429,13 +429,24 @@ Use Electric Blue (`#0A7AFF`) horizontal rules or left-border accents on callout
 - Hover: Deep Navy `#1E3A8A` (or white on dark backgrounds)
 - Never use underlines in navigation — only in inline body text links
 
+### Fixed Nav And Anchor Offsets
+The nav is `position: fixed`, so an anchor jump lands the target section's top edge underneath it. Every jump target (`#services`, `#process`, `#about`, `#contact`) therefore carries `scroll-margin-top: calc(var(--nav-h) + 24px)`. **A new section with an `id` that anything links to needs to be added to that selector**, or its heading will sit under the nav.
+
+`--nav-h` is the single source of truth for nav height (72px, 64px at ≤768px). Use it rather than repeating the pixel value, so scroll offsets can never drift out of sync with the nav.
+
+The form's post-submit scroll targets `#contact` — not the confirmation panel — precisely so it inherits that offset.
+
 ### Responsive
 Breakpoints live at the bottom of `styles.css`: **1080px** (two-column layouts collapse), **900px** (cards stack, ladder rows stack, decorative charger image hides), **768px** (nav text links collapse to the CTA only, section padding drops, form rows stack), **480px** (fine tuning). A `prefers-reduced-motion` block disables the reveal animations. **Any new multi-column section needs a rule in these blocks.**
 
 ### Contact Form
-- Endpoint: `https://formspree.io/f/mkjwqezy` — **do not change the action URL or the field names** (`name`, `email`, `property`, `property-type`, `message`)
-- `_next` redirects to `thank-you.html`; `_gotcha` is the honeypot
-- Analytics: **there is currently no GA4 property on this site.** `thank-you.html` carries a commented placeholder block showing exactly where the `gtag` snippet and the `generate_lead` conversion event go. Uncomment and insert the real Measurement ID to activate.
+- Endpoint: `https://formspree.io/f/mkjwqezy` — **do not change the action URL or the field names** (`name`, `email`, `property`, `property-type`, `message`). `_gotcha` is the honeypot.
+- **The form submits in the background, not by navigating.** The handler in `index.html` posts via `fetch` with `Accept: application/json`, then hides the form and reveals `#form-success` in place. The visitor never leaves the page, on success or failure.
+- **Do not add a `_next` field.** Formspree's redirect is a paid feature; on the free tier it does nothing. The inline confirmation exists specifically so the branded experience does not depend on it.
+- Failures render in `#form-error` in brand styling, with the form and the visitor's typed answers left intact so they can retry. Server-supplied messages are written with `textContent`, never `innerHTML`.
+- **No-JS fallback:** the form keeps a real `action` and `method`, so with JavaScript disabled it posts normally and lands on Formspree's own hosted confirmation. Unbranded, but it still reaches the inbox — do not remove those attributes.
+- Free-tier submission caps apply. If volume outgrows them, the migration path is to swap the `action` URL for another provider (Web3Forms, FormSubmit) or point it at a serverless function — the markup and handler need no other change.
+- Analytics: **there is currently no GA4 property on this site.** When one is added, the `generate_lead` conversion belongs in the success branch of the form handler in `index.html` (marked with a comment there) — **not** on `thank-you.html`, which is no longer in the submit flow.
 
 ### No Frameworks
 Hand-coded HTML and CSS only. **Do not introduce React, Tailwind, a build step, or npm.** One stylesheet, one small inline script for scroll reveals and the nav shadow.
@@ -449,7 +460,9 @@ Actual repository contents:
 ```
 /
   index.html               ← Single-page site (all sections, anchor navigation)
-  thank-you.html           ← Formspree redirect target; GA4 placeholder lives here
+  thank-you.html           ← Branded confirmation page. Currently UNREFERENCED: the
+                             form confirms inline instead. Retained for a future move
+                             to a provider with a free redirect, or a serverless endpoint.
   styles.css               ← All styles, responsive rules at the bottom
   CLAUDE.md                ← This file
   README.md

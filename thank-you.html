@@ -20,10 +20,13 @@
   GA4 PLACEHOLDER — NOT ACTIVE. Nothing on this site is currently tracked.
   ----------------------------------------------------------------------------
   There was no GA4 property, gtag snippet, or conversion event anywhere in this
-  repository, so none could be preserved. To turn on lead tracking, replace
-  G-XXXXXXXXXX below with the real Measurement ID and uncomment both blocks.
-  The generate_lead event fires on this page because it is only reachable via
-  the Formspree _next redirect after a successful submission.
+  repository, so none could be preserved.
+
+  NOTE: this page is NOT currently in the submit flow. The contact form posts in
+  the background and shows an inline confirmation without navigating, so the
+  generate_lead conversion belongs in the success branch of the form handler in
+  index.html — not here. This page is retained for the case where the site moves
+  to a form provider whose redirect is free, or to its own serverless endpoint.
 
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
   <script>
