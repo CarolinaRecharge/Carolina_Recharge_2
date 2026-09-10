@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Site Energy Model — Carolina Recharge Demo</title>
+<meta name="description" content="Interactive demo of the Site Energy Model: capacity, dispatch and cost for a grid-constrained Northern Virginia campus across four build scenarios.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="images/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="images/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+<meta name="theme-color" content="#0F2060">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+
+<header class="demo-head">
+  <div class="head-top">
+    <a href="https://carolinarecharge.com"><img src="images/logo-horizontal.svg" alt="Carolina Recharge"></a>
+    <span class="badge-demo">Demonstration · Spec v0.3</span>
+  </div>
+  <h1>Site Energy Model —<br><em>Know before you build.</em></h1>
+  <p class="head-sub">
+    Four ways to power a 100&nbsp;MW campus that cannot get a grid connection for five years, run hour by hour
+    for fifteen years against the same weather, the same load and the same tariff. Move a control and every
+    number below is recomputed from the physics up — no stored answers.
+  </p>
+  <div class="head-meta" id="head-meta"></div>
+</header>
+
+<div class="rail">
+  <div class="rail-inner">
+    <div class="ctl">
+      <span class="ctl-title">Workload preset</span>
+      <div class="seg" id="preset-seg" role="group" aria-label="Workload preset"></div>
+    </div>
+    <div class="ctl">
+      <label for="c-grid">Grid energization <span class="ctl-val" id="v-grid"></span></label>
+      <input type="range" id="c-grid" min="36" max="84" step="1">
+    </div>
+    <div class="ctl">
+      <label for="c-first">Hybrid first power <span class="ctl-val" id="v-first"></span></label>
+      <input type="range" id="c-first" min="9" max="36" step="1">
+    </div>
+    <div class="ctl">
+      <label for="c-retain">Retained gas <span class="ctl-val" id="v-retain"></span></label>
+      <input type="range" id="c-retain" min="0" max="40" step="2.5">
+    </div>
+    <div class="ctl">
+      <label for="c-contract">Contracted demand <span class="ctl-val" id="v-contract"></span></label>
+      <input type="range" id="c-contract" min="55" max="100" step="5">
+    </div>
+    <div class="ctl">
+      <label for="c-bess">BESS per phase <span class="ctl-val" id="v-bess"></span></label>
+      <input type="range" id="c-bess" min="0" max="40" step="2.5">
+    </div>
+    <div class="ctl">
+      <label for="c-hours">BESS duration <span class="ctl-val" id="v-hours"></span></label>
+      <input type="range" id="c-hours" min="0.5" max="6" step="0.5">
+    </div>
+    <div class="ctl">
+      <span class="ctl-title">§8.2 open call</span>
+      <label class="chk"><input type="checkbox" id="c-reserve"> Diesel counts as bridge reserve</label>
+    </div>
+    <div class="rail-actions">
+      <button class="btn" id="btn-reset">Reset</button>
+      <button class="btn btn-primary" id="btn-export">Export JSON</button>
+    </div>
+  </div>
+</div>
+
+<nav class="tabs" id="tabs" role="tablist"></nav>
+
+<main>
+  <section class="panel" id="p-overview"></section>
+  <section class="panel" id="p-lifecycle" hidden></section>
+  <section class="panel" id="p-dispatch" hidden></section>
+  <section class="panel" id="p-economics" hidden></section>
+  <section class="panel" id="p-reliability" hidden></section>
+  <section class="panel" id="p-tradeoff" hidden></section>
+  <section class="panel" id="p-assumptions" hidden></section>
+</main>
+
+<div class="busy" id="busy" hidden><span>Running 131,400 hours…</span></div>
+
+<footer>
+  <div class="foot-inner">
+    <h4>About this page</h4>
+    <p>
+      This is a demonstration of a model under development, built to the Site Energy Model design spec v0.3.
+      Every figure on it is produced by that model from the assumptions listed under Assumptions, several of
+      which are still open. Nothing here is a quotation, an offer, or advice on a specific property, and the
+      reference site is illustrative rather than a real customer.
+    </p>
+
+    <div class="foot-rule"></div>
+
+    <h4>Licensure</h4>
+    <p>
+      Carolina Recharge is not a professional engineering firm and does not provide engineering services.
+      Where a project requires drawings sealed by a professional engineer licensed in North Carolina, we
+      identify that requirement and refer qualified licensed professionals.
+    </p>
+
+    <h4>Equipment</h4>
+    <p>
+      We are an authorized reseller of the charging hardware and software we recommend, sold as a bundle, and
+      we say so up front. You're free to use any provider, and our fees don't change if you do. On the
+      electrical work, which is the larger cost, we take no commission and no percentage — it's bid
+      competitively on your behalf.
+    </p>
+
+    <div class="foot-rule"></div>
+    <p>
+      <b>Carolina Recharge LLC</b> · Winston-Salem, NC ·
+      <a href="https://carolinarecharge.com">carolinarecharge.com</a> ·
+      <a href="mailto:daniel.black@carolinarecharge.com">daniel.black@carolinarecharge.com</a>
+    </p>
+  </div>
+</footer>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

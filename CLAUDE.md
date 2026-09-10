@@ -474,7 +474,25 @@ Actual repository contents:
     apple-touch-icon.png   ← 180×180 home-screen icon
     wall-charger.png       ← Hero decorative image
     charger-unit.png       ← Unused; retained from earlier revision
+  /demo                    ← Site Energy Model demo for demo.carolinarecharge.com
+    index.html               Page shell; tabs and controls
+    demo.css                 Own stylesheet, same brand tokens as styles.css
+    README.md                Deployment, module map, how to verify a change
+    /images                  Copies of four brand assets, so demo/ deploys alone
+    /js                      ES modules — model, solver, charts, UI
 ```
+
+### The demo subtree
+`demo/` is a separate deliverable that happens to live in this repository. It is
+still hand-coded with **no build step, no npm and no framework**, and it carries
+both required disclosures from §6 in its footer, so the §5.5 audit covers it
+unchanged. It has its own stylesheet rather than extending `styles.css` — a
+dense dashboard and a marketing page do not want the same rules — but it draws
+on the same tokens, type scale and UI patterns, so the two read as one brand.
+
+Its four brand assets under `demo/images/` are **copies**. If the logo or the
+favicon is regenerated per §2 or the favicon note above, copy the new files
+across; `/images` stays the source of truth.
 
 ### Favicon
 `favicon.svg` reuses the **same Census boundary path** as the logo, filled rather than stroked (a 2px stroke vanishes at 16px) on a `--navy-dark` rounded tile, with the Triad node enlarged so it survives downscaling. It is a **derived asset, not the logo** — the no-recolor rule in §2 applies to the logo files, which are untouched.
