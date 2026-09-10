@@ -1,4 +1,4 @@
-# demo.carolinarecharge.com — Site Energy Model
+# carolinarecharge.com/demo/ — Site Energy Model
 
 An interactive demonstration of the Site Energy Model, built to design spec v0.3.
 It runs a 15-year, hourly simulation of four ways to power a grid-constrained
@@ -9,27 +9,33 @@ whenever a control moves. A full run — 131,400 hours × 4 scenarios plus a
 Nothing is precomputed and nothing is stored server-side. The page is static
 files.
 
-## Deploying to the subdomain
+## Deploying
 
-The demo is self-contained: `demo/` has its own copy of the brand assets it
-needs and no path escapes the directory. There are two ways to serve it.
+**Nothing to configure.** The demo lives at `/demo/` on the main site, so
+whatever deploys the repository root already publishes it. No build command, no
+output directory, no separate project, no DNS record.
 
-**As a separate Vercel project (recommended for a subdomain).**
-Create a project from this repository with **Root Directory = `demo`**, add
-`demo.carolinarecharge.com` as a domain, and point a CNAME at Vercel. No build
-command and no output directory — it is plain static output.
+It draws its logo and icons from `../images/`, the same files the marketing site
+uses, so there is one copy of each brand asset and nothing to keep in sync.
 
-**As a path on the main site.** Deploying the repository root also serves the
-demo at `carolinarecharge.com/demo/`. To put that path behind the subdomain
-instead, add the domain to the existing project and rewrite `/` to `/demo/` for
-that host.
+Local preview needs an HTTP server rather than opening the file directly,
+because the page uses ES modules:
 
-Either way the demo needs **no build step, no npm install and no server**. It
-does need to be served over HTTP rather than opened from the filesystem, because
-it uses ES modules — `python3 -m http.server` is enough for local preview.
+```bash
+python3 -m http.server 8000   # from the repository root
+# then http://localhost:8000/demo/
+```
 
-The page carries `<meta name="robots" content="noindex, nofollow">`. Take that
-out only if the demo is meant to be found by search.
+The page carries `<meta name="robots" content="noindex, nofollow">`, so it will
+not turn up in search or dilute the marketing site's ranking. Nothing on the
+main site links to it — reach it by URL. Take the meta tag out and add a link
+only if the demo is meant to be found.
+
+**If it ever moves to its own subdomain,** the simplest route is to add the
+domain to the same project and rewrite `/` to `/demo/` for that host — the
+relative asset paths keep working. A separate project with Root Directory set to
+`demo` would not: that would need the four brand assets copied into `demo/` and
+the paths changed from `../images/` to `images/`.
 
 ## Layout
 
@@ -37,7 +43,6 @@ out only if the demo is meant to be found by search.
 demo/
   index.html      page shell — header, control rail, tab panels, footer
   demo.css        all styles; brand tokens match ../styles.css
-  images/         copies of the brand assets, so the directory can deploy alone
   js/
     config.js     every input, each tagged confirmed / validate / decide
     util.js       seeded PRNG, curve interpolation, calendar, formatters
@@ -52,9 +57,6 @@ demo/
     charts.js     hand-rolled SVG charts and the validated palette
     app.js        UI wiring only; no arithmetic that matters
 ```
-
-`images/` duplicates four files from `../images/`. If the logo or the favicon is
-ever regenerated, copy them across — the originals stay the source of truth.
 
 ## The two interfaces that matter
 
