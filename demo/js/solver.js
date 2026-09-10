@@ -10,9 +10,46 @@ import { clamp, curve } from './util.js';
 import { shaveThreshold } from './sizing.js';
 
 /**
+ * One hour of dispatch. Written as a single literal on purpose: building it by
+ * assigning keys in a loop leaves the object in dictionary mode, and every read
+ * of every field for the rest of the run then takes the slow path. With 131,400
+ * hours per scenario that one detail dominated the runtime.
+ */
+function makeFlow() {
+  return {
+    hour: 0, load: 0, solar: 0, solarCurtail: 0, grid: 0, gas: 0, gasUnits: 0,
+    gasFuelMMBtu: 0, gasRunHours: 0, bessCharge: 0, bessDischarge: 0, soc: 0,
+    diesel: 0, dieselUnits: 0, dieselTestMW: 0, dieselFuelMMBtu: 0,
+    dieselGasMMBtu: 0, dieselRunHours: 0, unserved: 0, shed: 0,
+    reserveShortfall: 0, curtailedEnergy: 0,
+  };
+}
+
+/**
+ * A reusable output buffer. The horizon is 131,400 hours per scenario, and
+ * minting a fresh record for each of them costs more than the dispatch
+ * arithmetic does. Callers that aggregate a window before asking for the next
+ * one should hand the same buffer back every time.
+ */
+export function makeFlowBuffer(H = 24) {
+  const buf = [];
+  for (let h = 0; h < H; h++) buf.push(makeFlow());
+  // The solver's own working series live on the buffer too. Allocating three
+  // typed arrays per simulated day was the largest single source of garbage in
+  // the run.
+  buf.scratch = {
+    solarUsed: new Float64Array(H),
+    gridPlanned: new Float64Array(H),
+    residual: new Float64Array(H),
+  };
+  return buf;
+}
+
+/**
  * @param problem — one day: load, solar, grid limits, asset parameters, events
  * @param state   — carried across windows: { socMWh, fecCount }
- * @returns flows[24], one record per hour
+ * @returns flows[24], one record per hour. When `problem.buffer` is supplied the
+ *          return value IS that buffer — read it before the next call.
  */
 export function solveWindow(problem, state) {
   const H = problem.hours;
@@ -33,9 +70,8 @@ export function solveWindow(problem, state) {
   // day, and the battery would then charge at full power from the grid to get
   // ready for an island that is not coming — setting the very demand peak it is
   // on site to shave.
-  const solarUsed = new Float64Array(H);
-  const gridPlanned = new Float64Array(H);
-  const residual = new Float64Array(H);
+  const flows = problem.buffer || makeFlowBuffer(H);
+  const { solarUsed, gridPlanned, residual } = flows.scratch;
 
   for (let h = 0; h < H; h++) {
     const L = problem.load[h];
@@ -82,19 +118,18 @@ export function solveWindow(problem, state) {
   for (let h = 0; h < H; h++) if (target[h] > targetPeak) targetPeak = target[h];
   const chargeCeiling = Math.min(threshold, targetPeak);
 
-  const flows = [];
   let fec = state.fecCount || 0;
 
   for (let h = 0; h < H; h++) {
     const L = problem.load[h];
-    const f = {
-      hour: h, load: L,
-      solar: solarUsed[h], solarCurtail: Math.max(0, problem.solar[h] - solarUsed[h]),
-      grid: 0, gas: 0, gasUnits: 0, gasFuelMMBtu: 0, gasRunHours: 0,
-      bessCharge: 0, bessDischarge: 0, soc,
-      diesel: 0, dieselUnits: 0, dieselTestMW: 0, dieselFuelMMBtu: 0, dieselGasMMBtu: 0, dieselRunHours: 0,
-      unserved: 0, shed: 0, reserveShortfall: 0, curtailedEnergy: 0,
-    };
+    const f = flows[h];
+    f.hour = h; f.load = L;
+    f.solar = solarUsed[h]; f.solarCurtail = Math.max(0, problem.solar[h] - solarUsed[h]);
+    f.grid = 0; f.gas = 0; f.gasUnits = 0; f.gasFuelMMBtu = 0; f.gasRunHours = 0;
+    f.bessCharge = 0; f.bessDischarge = 0; f.soc = soc;
+    f.diesel = 0; f.dieselUnits = 0; f.dieselTestMW = 0;
+    f.dieselFuelMMBtu = 0; f.dieselGasMMBtu = 0; f.dieselRunHours = 0;
+    f.unserved = 0; f.shed = 0; f.reserveShortfall = 0; f.curtailedEnergy = 0;
 
     const outage = events.gridOut[h] === 1;
     const gasOut = events.gasOut[h] === 1;
@@ -240,7 +275,6 @@ export function solveWindow(problem, state) {
     // ── 6. Anything still short is unserved, and says so ────────────────────
     f.unserved = Math.max(0, supply);
     f.soc = soc;
-    flows.push(f);
   }
 
   state.socMWh = soc;

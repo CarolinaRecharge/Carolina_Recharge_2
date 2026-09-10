@@ -9,7 +9,24 @@
 import { FUEL, NG_BRIDGE, DF_BACKUP, BESS, SOLAR, FINANCE } from './config.js';
 import { crf } from './util.js';
 
-export function costOf(flows, problem) {
+/** Written as one literal for the same reason as the flow record — see solver.js. */
+export function makeCostRecord() {
+  return {
+    gasFuel: 0, gasVarOM: 0, dieselFuel: 0, dieselVarOM: 0, gasFuelMMBtu: 0,
+    dieselFuelMMBtu: 0, dieselGasMMBtu: 0, gasRunHours: 0, dieselRunHours: 0,
+    gasMWh: 0, dieselMWh: 0, dieselTestMWh: 0, gridMWh: 0, solarMWh: 0,
+    bessOutMWh: 0, bessInMWh: 0, unservedMWh: 0, shedMWh: 0, curtailedMWh: 0,
+    reserveShortHours: 0, co2Tonnes: 0,
+  };
+}
+
+/**
+ * The shared scorer from §9. `out` is an optional reusable record — the horizon
+ * calls this once per day per scenario, so the allocation matters more than the
+ * arithmetic. Any solver's flows go through this one function, so a future LP
+ * and the heuristic are scored on identical terms.
+ */
+export function costOf(flows, problem, out) {
   let gasFuelMMBtu = 0, gasRunHours = 0, gasMWh = 0;
   let dieselFuelMMBtu = 0, dieselGasMMBtu = 0, dieselRunHours = 0, dieselMWh = 0, dieselTestMWh = 0;
   let gridMWh = 0, solarMWh = 0, bessOutMWh = 0, bessInMWh = 0;
@@ -28,20 +45,22 @@ export function costOf(flows, problem) {
   const gasPrice = problem.prices.gasPerMMBtu;
   const dieselPrice = problem.prices.dieselPerMMBtu;
 
-  return {
-    gasFuel: (gasFuelMMBtu + dieselGasMMBtu) * gasPrice,
-    gasVarOM: gasRunHours * NG_BRIDGE.varOMPerRunHr,
-    dieselFuel: dieselFuelMMBtu * dieselPrice,
-    dieselVarOM: dieselRunHours * DF_BACKUP.varOMPerRunHr,
-    // Volumes, for the KPI layer.
-    gasFuelMMBtu, dieselFuelMMBtu, dieselGasMMBtu,
-    gasRunHours, dieselRunHours,
-    gasMWh, dieselMWh, dieselTestMWh, gridMWh, solarMWh, bessOutMWh, bessInMWh,
-    unservedMWh, shedMWh, curtailedMWh, reserveShortHours,
-    co2Tonnes:
-      ((gasFuelMMBtu + dieselGasMMBtu) * FUEL.ngKgCO2PerMMBtu +
-        dieselFuelMMBtu * FUEL.dieselKgCO2PerMMBtu) / 1000,
-  };
+  const r = out || makeCostRecord();
+  r.gasFuel = (gasFuelMMBtu + dieselGasMMBtu) * gasPrice;
+  r.gasVarOM = gasRunHours * NG_BRIDGE.varOMPerRunHr;
+  r.dieselFuel = dieselFuelMMBtu * dieselPrice;
+  r.dieselVarOM = dieselRunHours * DF_BACKUP.varOMPerRunHr;
+  // Volumes, for the KPI layer.
+  r.gasFuelMMBtu = gasFuelMMBtu; r.dieselFuelMMBtu = dieselFuelMMBtu; r.dieselGasMMBtu = dieselGasMMBtu;
+  r.gasRunHours = gasRunHours; r.dieselRunHours = dieselRunHours;
+  r.gasMWh = gasMWh; r.dieselMWh = dieselMWh; r.dieselTestMWh = dieselTestMWh;
+  r.gridMWh = gridMWh; r.solarMWh = solarMWh; r.bessOutMWh = bessOutMWh; r.bessInMWh = bessInMWh;
+  r.unservedMWh = unservedMWh; r.shedMWh = shedMWh; r.curtailedMWh = curtailedMWh;
+  r.reserveShortHours = reserveShortHours;
+  r.co2Tonnes =
+    ((gasFuelMMBtu + dieselGasMMBtu) * FUEL.ngKgCO2PerMMBtu +
+      dieselFuelMMBtu * FUEL.dieselKgCO2PerMMBtu) / 1000;
+  return r;
 }
 
 /** Delivered gas, $/MMBtu, in a given year of the horizon. */

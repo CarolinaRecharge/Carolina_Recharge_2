@@ -3,69 +3,67 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Site Energy Model — Carolina Recharge Demo</title>
-<meta name="description" content="Interactive demo of the Site Energy Model: capacity, dispatch and cost for a grid-constrained Northern Virginia campus across four build scenarios.">
+<title>Site Energy Model</title>
+<meta name="description" content="Interactive model of a grid-constrained 100 MW campus: capacity, hourly dispatch and cost across four build scenarios, recomputed live.">
 <meta name="robots" content="noindex, nofollow">
-<link rel="icon" href="../images/favicon.svg" type="image/svg+xml">
-<link rel="icon" href="../images/favicon-32.png" sizes="32x32" type="image/png">
-<link rel="apple-touch-icon" href="../images/apple-touch-icon.png">
-<meta name="theme-color" content="#0F2060">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#14161a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="demo.css">
 </head>
 <body>
 
-<header class="demo-head">
-  <div class="head-top">
-    <a href="../"><img src="../images/logo-horizontal.svg" alt="Carolina Recharge"></a>
-    <span class="badge-demo">Demonstration · Spec v0.3</span>
+<header class="head">
+  <div class="head-inner">
+    <div class="head-top">
+      <div class="mark">
+        <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
+          <rect x="1" y="1" width="30" height="30" rx="8" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.35"/>
+          <path d="M6 22 L11 22 L11 14 L16 14 L16 19 L21 19 L21 9 L26 9"
+                fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+        <span>Site Energy Model</span>
+      </div>
+      <span class="badge">Design spec v0.3 · draft</span>
+    </div>
+    <h1>Four ways to power a campus<br><em>the grid can't reach for five years.</em></h1>
+    <p class="head-sub">
+      A 100&nbsp;MW site, 131,400 hours, four build scenarios, one tariff. Every control below re-solves the
+      whole model — hourly dispatch, unit commitment, the demand bill — and the page redraws while you drag.
+      Nothing here is a stored answer.
+    </p>
+    <div class="head-meta" id="head-meta"></div>
   </div>
-  <h1>Site Energy Model —<br><em>Know before you build.</em></h1>
-  <p class="head-sub">
-    Four ways to power a 100&nbsp;MW campus that cannot get a grid connection for five years, run hour by hour
-    for fifteen years against the same weather, the same load and the same tariff. Move a control and every
-    number below is recomputed from the physics up — no stored answers.
-  </p>
-  <div class="head-meta" id="head-meta"></div>
 </header>
 
 <div class="rail">
   <div class="rail-inner">
-    <div class="ctl">
-      <span class="ctl-title">Workload preset</span>
+    <div class="ctl ctl-seg">
+      <span class="ctl-title">Workload</span>
       <div class="seg" id="preset-seg" role="group" aria-label="Workload preset"></div>
     </div>
-    <div class="ctl">
-      <label for="c-grid">Grid energization <span class="ctl-val" id="v-grid"></span></label>
-      <input type="range" id="c-grid" min="36" max="84" step="1">
-    </div>
-    <div class="ctl">
-      <label for="c-first">Hybrid first power <span class="ctl-val" id="v-first"></span></label>
-      <input type="range" id="c-first" min="9" max="36" step="1">
-    </div>
-    <div class="ctl">
-      <label for="c-retain">Retained gas <span class="ctl-val" id="v-retain"></span></label>
-      <input type="range" id="c-retain" min="0" max="40" step="2.5">
-    </div>
-    <div class="ctl">
-      <label for="c-contract">Contracted demand <span class="ctl-val" id="v-contract"></span></label>
-      <input type="range" id="c-contract" min="55" max="100" step="5">
-    </div>
-    <div class="ctl">
-      <label for="c-bess">BESS per phase <span class="ctl-val" id="v-bess"></span></label>
-      <input type="range" id="c-bess" min="0" max="40" step="2.5">
-    </div>
-    <div class="ctl">
-      <label for="c-hours">BESS duration <span class="ctl-val" id="v-hours"></span></label>
-      <input type="range" id="c-hours" min="0.5" max="6" step="0.5">
-    </div>
-    <div class="ctl">
+    <div class="ctl"><label for="c-grid">Grid energization <b id="v-grid"></b></label>
+      <input type="range" id="c-grid" min="36" max="84" step="1"></div>
+    <div class="ctl"><label for="c-first">First power <b id="v-first"></b></label>
+      <input type="range" id="c-first" min="9" max="36" step="1"></div>
+    <div class="ctl"><label for="c-contract">Contracted demand <b id="v-contract"></b></label>
+      <input type="range" id="c-contract" min="55" max="100" step="1"></div>
+    <div class="ctl"><label for="c-bess">Battery per phase <b id="v-bess"></b></label>
+      <input type="range" id="c-bess" min="0" max="40" step="1"></div>
+    <div class="ctl"><label for="c-hours">Battery duration <b id="v-hours"></b></label>
+      <input type="range" id="c-hours" min="0.5" max="6" step="0.5"></div>
+    <div class="ctl"><label for="c-retain">Retained gas <b id="v-retain"></b></label>
+      <input type="range" id="c-retain" min="0" max="40" step="1"></div>
+    <div class="ctl"><label for="c-solar">Solar <b id="v-solar"></b></label>
+      <input type="range" id="c-solar" min="0" max="40" step="1"></div>
+    <div class="ctl ctl-check">
       <span class="ctl-title">§8.2 open call</span>
-      <label class="chk"><input type="checkbox" id="c-reserve"> Diesel counts as bridge reserve</label>
+      <label class="chk"><input type="checkbox" id="c-reserve"> Backup counts as bridge reserve</label>
     </div>
     <div class="rail-actions">
+      <span class="tick" id="tick" aria-live="polite"></span>
       <button class="btn" id="btn-reset">Reset</button>
       <button class="btn btn-primary" id="btn-export">Export JSON</button>
     </div>
@@ -84,40 +82,19 @@
   <section class="panel" id="p-assumptions" hidden></section>
 </main>
 
-<div class="busy" id="busy" hidden><span>Running 131,400 hours…</span></div>
-
 <footer>
   <div class="foot-inner">
-    <h4>About this page</h4>
+    <h4>About this model</h4>
     <p>
-      This is a demonstration of a model under development, built to the Site Energy Model design spec v0.3.
-      Every figure on it is produced by that model from the assumptions listed under Assumptions, several of
-      which are still open. Nothing here is a quotation, an offer, or advice on a specific property, and the
-      reference site is illustrative rather than a real customer.
+      A demonstration of a model under development, built to the Site Energy Model design spec v0.3. Every
+      figure is produced by that model from the assumptions listed under Assumptions, several of which are
+      still open. Nothing here is a quotation, an offer, or advice on a specific site, and the reference case
+      is illustrative rather than a real project.
     </p>
-
-    <div class="foot-rule"></div>
-
-    <h4>Licensure</h4>
     <p>
-      Carolina Recharge is not a professional engineering firm and does not provide engineering services.
-      Where a project requires drawings sealed by a professional engineer licensed in North Carolina, we
-      identify that requirement and refer qualified licensed professionals.
-    </p>
-
-    <h4>Equipment</h4>
-    <p>
-      We are an authorized reseller of the charging hardware and software we recommend, sold as a bundle, and
-      we say so up front. You're free to use any provider, and our fees don't change if you do. On the
-      electrical work, which is the larger cost, we take no commission and no percentage — it's bid
-      competitively on your behalf.
-    </p>
-
-    <div class="foot-rule"></div>
-    <p>
-      <b>Carolina Recharge LLC</b> · Winston-Salem, NC ·
-      <a href="../">carolinarecharge.com</a> ·
-      <a href="mailto:daniel.black@carolinarecharge.com">daniel.black@carolinarecharge.com</a>
+      This model is not a professional engineering deliverable and does not constitute engineering services.
+      Where a project requires drawings sealed by a professional engineer, the model identifies that
+      requirement; it does not satisfy it.
     </p>
   </div>
 </footer>

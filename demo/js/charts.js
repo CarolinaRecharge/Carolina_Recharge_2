@@ -1,22 +1,31 @@
-// Hand-rolled SVG charts. No library, per the house rule against build steps.
+// Hand-rolled SVG charts. No library, no build step.
 //
-// The palette below was validated with the data-viz colour checks against a
-// white chart surface: lightness band, chroma floor, adjacent-pair CVD
-// separation and normal-vision separation all pass. Three of the hues sit
-// under 3:1 contrast on white, which is why every chart here ships a legend,
-// direct labels and a table view rather than relying on colour alone.
+// The palette was validated with the data-viz colour checks against a white
+// chart surface: lightness band, chroma floor, adjacent-pair CVD separation and
+// normal-vision separation all pass, in the slot order used here. Two hues sit
+// under 3:1 contrast on white, which is why every chart ships a legend, direct
+// labels and a table view rather than resting identity on colour alone.
 
 export const PALETTE = {
-  scenario: { wait: '#4A3AA7', bridge: '#EB6834', hybrid: '#0A7AFF', retained: '#1BAF7A' },
+  scenario: { wait: '#4a3aa7', bridge: '#eb6834', hybrid: '#2a78d6', retained: '#1baf7a' },
   dispatch: {
-    solar: '#EDA100', grid: '#0A7AFF', gas: '#EB6834',
-    bess: '#1BAF7A', diesel: '#4A3AA7', unserved: '#E34948',
+    solar: '#eda100', grid: '#2a78d6', gas: '#eb6834',
+    bess: '#1baf7a', diesel: '#4a3aa7', unserved: '#e34948',
   },
-  ink: { primary: '#0F2060', secondary: '#475569', muted: '#94A3B8' },
-  grid: '#E8EDF5',
-  surface: '#FFFFFF',
-  status: { pass: '#047857', warn: '#B45309', fail: '#B91C1C' },
+  // Sequential, one hue, light → dark. For continuous magnitude only.
+  ramp: ['#e8f1fd', '#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'],
+  ink: { primary: '#14161a', secondary: '#4a4f57', muted: '#9aa1ab' },
+  grid: '#e9ebef',
+  surface: '#ffffff',
+  status: { pass: '#047857', warn: '#b45309', fail: '#b91c1c' },
 };
+
+/** Position on the sequential ramp, 0..1. */
+export function rampAt(t) {
+  const r = PALETTE.ramp;
+  const x = Math.max(0, Math.min(1, t)) * (r.length - 1);
+  return r[Math.round(x)];
+}
 
 const NS = 'http://www.w3.org/2000/svg';
 const M = { top: 26, right: 18, bottom: 34, left: 62 };
@@ -247,10 +256,13 @@ export function renderGroupedBars(host, cfg) {
       const x = x0 + si * (bw + 2);
       const y = f.y(v);
       const h = Math.max(1, M.top + f.ih - y);
-      const r = svgEl('rect', { x, y, width: bw, height: h, rx: Math.min(4, bw / 2), fill: s.color });
-      r.addEventListener('pointerenter', (ev) => {
+      // A single-series chart may colour each bar by its category instead — the
+      // colour still follows the entity, it is just that the entity is the group.
+      const fill = cfg.colorByGroup ? cfg.colorByGroup[gi] : s.color;
+      const r = svgEl('rect', { x, y, width: bw, height: h, rx: Math.min(4, bw / 2), fill });
+      r.addEventListener('pointerenter', () => {
         tip.innerHTML = `<div class="viz-tip-h">${cfg.groupLabel ? cfg.groupLabel(g) : g}</div>` +
-          `<div class="viz-tip-row"><span class="viz-swatch" style="background:${s.color}"></span>` +
+          `<div class="viz-tip-row"><span class="viz-swatch" style="background:${fill}"></span>` +
           `<span class="viz-tip-k">${s.label}</span><span class="viz-tip-v">${cfg.yFmt(v)}</span></div>`;
         tip.hidden = false;
         const hr = host.getBoundingClientRect();
@@ -259,6 +271,11 @@ export function renderGroupedBars(host, cfg) {
       });
       r.addEventListener('pointerleave', () => { tip.hidden = true; });
       f0.svg.appendChild(r);
+      if (cfg.valueLabels !== false && cfg.series.length === 1) {
+        const t = svgEl('text', { x: x + bw / 2, y: y - 6, 'text-anchor': 'middle', class: 'viz-label' });
+        t.textContent = cfg.yFmt(v);
+        f0.svg.appendChild(t);
+      }
     });
     const lab = svgEl('text', { x: M.left + gi * gw + gw / 2, y: f.h - 12, 'text-anchor': 'middle', class: 'viz-axis' });
     lab.textContent = cfg.groupTick ? cfg.groupTick(g, gi) : g;
@@ -423,4 +440,131 @@ export function legend(items) {
   return `<div class="viz-legend">${items.map((i) =>
     `<span class="viz-legend-item"><span class="viz-swatch${i.dashed ? ' viz-swatch-dash' : ''}" style="background:${i.color}"></span>${i.label}</span>`
   ).join('')}</div>`;
+}
+
+// ── Sparkline: a bare trend, no axes, sized to sit inside a stat tile ───────
+export function sparkline(values, color, w = 132, h = 34) {
+  let lo = Infinity, hi = -Infinity;
+  for (const v of values) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  if (!isFinite(lo) || hi === lo) { lo = 0; hi = 1; }
+  const x = (i) => (i / (values.length - 1)) * (w - 2) + 1;
+  const y = (v) => h - 3 - ((v - lo) / (hi - lo)) * (h - 6);
+  let d = '', area = '';
+  values.forEach((v, i) => { d += `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`; });
+  area = `${d}L${x(values.length - 1).toFixed(1)} ${h}L${x(0).toFixed(1)} ${h}Z`;
+  const zero = lo < 0 && hi > 0 ? `<line x1="1" x2="${w - 1}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="${PALETTE.ink.muted}" stroke-width="1" stroke-dasharray="2 2"/>` : '';
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true">
+    <path d="${area}" fill="${color}" fill-opacity="0.10"/>${zero}
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${x(values.length - 1).toFixed(1)}" cy="${y(values[values.length - 1]).toFixed(1)}" r="2.8" fill="${color}"/>
+  </svg>`;
+}
+
+// ── Meter: one bar against a scale, for a share or a ratio ─────────────────
+export function meter(fracOrValue, label, valueText, color, marks = []) {
+  const pct = Math.max(0, Math.min(1, fracOrValue)) * 100;
+  const ticks = marks.map((m) =>
+    `<span class="meter-mark" style="left:${(Math.max(0, Math.min(1, m.at)) * 100).toFixed(1)}%" title="${m.label}"></span>`).join('');
+  return `<div class="meter">
+    <div class="meter-head"><span>${label}</span><b>${valueText}</b></div>
+    <div class="meter-track"><span class="meter-fill" style="width:${pct.toFixed(1)}%;background:${color}"></span>${ticks}</div>
+  </div>`;
+}
+
+// ── Heatmap: hour of day against month of year ─────────────────────────────
+export function renderHeatmap(host, cfg) {
+  const rows = cfg.rows;            // 12 rows of 24
+  const rowH = 20, labelW = 40, topPad = 20, botPad = 26;
+  const f0 = frame(host, rows.length * rowH + topPad + botPad);
+  const iw = f0.w - labelW - 14;
+  const cw = iw / 24;
+  let hi = 0, lo = Infinity;
+  for (const r of rows) for (const v of r) { if (v > hi) hi = v; if (v < lo) lo = v; }
+  if (!isFinite(lo)) lo = 0;
+  const span = hi - lo || 1;
+  const tip = tooltipFor(host);
+
+  rows.forEach((row, ri) => {
+    const y = topPad + ri * rowH;
+    const lab = svgEl('text', { x: labelW - 8, y: y + rowH / 2 + 4, 'text-anchor': 'end', class: 'viz-axis' });
+    lab.textContent = cfg.rowLabels[ri];
+    f0.svg.appendChild(lab);
+    row.forEach((v, ci) => {
+      const c = svgEl('rect', {
+        x: labelW + ci * cw + 1, y: y + 1, width: Math.max(1, cw - 2), height: rowH - 2, rx: 2,
+        fill: rampAt((v - lo) / span),
+      });
+      c.addEventListener('pointerenter', () => {
+        tip.innerHTML = `<div class="viz-tip-h">${cfg.rowLabels[ri]} · ${String(ci).padStart(2, '0')}:00</div>` +
+          `<div class="viz-tip-row"><span class="viz-tip-k">${cfg.measure}</span><span class="viz-tip-v">${cfg.fmt(v)}</span></div>`;
+        tip.hidden = false;
+        const hr = host.getBoundingClientRect();
+        tip.style.left = `${Math.min(labelW + ci * cw + 10, hr.width - tip.offsetWidth - 8)}px`;
+        tip.style.top = `${Math.max(4, y - 6)}px`;
+      });
+      c.addEventListener('pointerleave', () => { tip.hidden = true; });
+      f0.svg.appendChild(c);
+    });
+  });
+  for (const h of [0, 6, 12, 18, 23]) {
+    const t = svgEl('text', { x: labelW + h * cw + cw / 2, y: f0.h - 8, 'text-anchor': 'middle', class: 'viz-axis' });
+    t.textContent = `${String(h).padStart(2, '0')}`;
+    f0.svg.appendChild(t);
+  }
+  const cap = svgEl('text', { x: labelW, y: 12, class: 'viz-axis-label' });
+  cap.textContent = cfg.title || '';
+  f0.svg.appendChild(cap);
+  return { lo, hi };
+}
+
+/** Legend strip for a sequential ramp. */
+export function rampLegend(lo, hi, fmt) {
+  const stops = PALETTE.ramp.map((c, i) =>
+    `<span style="background:${c};flex:1"></span>`).join('');
+  return `<div class="ramp-legend"><span class="ramp-end">${fmt(lo)}</span>
+    <span class="ramp-bar">${stops}</span><span class="ramp-end">${fmt(hi)}</span></div>`;
+}
+
+// ── Range band: a min/mean/max envelope per category ───────────────────────
+export function renderRangeBand(host, cfg) {
+  const f0 = frame(host, cfg.height || 200);
+  const n = cfg.categories.length;
+  let lo = Infinity, hi = -Infinity;
+  for (const r of cfg.rows) { if (r.lo < lo) lo = r.lo; if (r.hi > hi) hi = r.hi; }
+  const ticks = niceTicks(lo, hi, 5);
+  const f = scales(f0, 0, n, Math.min(lo, ticks[0]), Math.max(hi, ticks[ticks.length - 1]));
+  axes(f0.svg, f, [], ticks, null, cfg.yFmt, cfg.yLabel);
+  const gw = f.iw / n;
+  const bw = Math.max(6, gw * 0.42);
+  const tip = tooltipFor(host);
+
+  cfg.rows.forEach((r, i) => {
+    const cx = M.left + i * gw + gw / 2;
+    const bar = svgEl('rect', {
+      x: cx - bw / 2, y: f.y(r.hi), width: bw, height: Math.max(2, f.y(r.lo) - f.y(r.hi)),
+      rx: Math.min(4, bw / 2), fill: cfg.color, 'fill-opacity': 0.22,
+    });
+    f0.svg.appendChild(bar);
+    f0.svg.appendChild(svgEl('line', {
+      x1: cx - bw / 2, x2: cx + bw / 2, y1: f.y(r.mid), y2: f.y(r.mid),
+      stroke: cfg.color, 'stroke-width': 2.5, 'stroke-linecap': 'round',
+    }));
+    const hit = svgEl('rect', { x: cx - gw / 2, y: M.top, width: gw, height: f.ih, fill: 'transparent' });
+    hit.addEventListener('pointerenter', () => {
+      tip.innerHTML = `<div class="viz-tip-h">${cfg.categories[i]}</div>` +
+        `<div class="viz-tip-row"><span class="viz-tip-k">High</span><span class="viz-tip-v">${cfg.yFmt(r.hi)}</span></div>` +
+        `<div class="viz-tip-row"><span class="viz-tip-k">Mean</span><span class="viz-tip-v">${cfg.yFmt(r.mid)}</span></div>` +
+        `<div class="viz-tip-row"><span class="viz-tip-k">Low</span><span class="viz-tip-v">${cfg.yFmt(r.lo)}</span></div>`;
+      tip.hidden = false;
+      const hr = host.getBoundingClientRect();
+      tip.style.left = `${Math.min(cx + 8, hr.width - tip.offsetWidth - 8)}px`;
+      tip.style.top = `${Math.max(4, f.y(r.hi) - 8)}px`;
+    });
+    hit.addEventListener('pointerleave', () => { tip.hidden = true; });
+    f0.svg.appendChild(hit);
+    const lab = svgEl('text', { x: cx, y: f.h - 12, 'text-anchor': 'middle', class: 'viz-axis' });
+    lab.textContent = cfg.categories[i];
+    f0.svg.appendChild(lab);
+  });
+  return f;
 }

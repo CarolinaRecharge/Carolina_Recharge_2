@@ -92,14 +92,26 @@ export function screenBackup({ facilityPeakMW: L, mwIT, presetKey, fin }) {
  * day's series down to. Shared by the sizing pass and the daily planner in the
  * solver so the two can never disagree about what the battery can do.
  */
-export function shaveThreshold(series, usableEnergyMWh, powerMW) {
-  let lo = 0, hi = 0;
-  for (const v of series) if (v > hi) hi = v;
+export function shaveThreshold(series, usableEnergyMWh, powerMW, n = series.length) {
+  // Indexed loops throughout: `series` is usually a Float64Array, and iterating
+  // one with for..of goes through the iterator protocol, which costs more here
+  // than the arithmetic. This runs once per simulated day.
+  let hi = 0, lo = Infinity;
+  for (let i = 0; i < n; i++) {
+    const v = series[i];
+    if (v > hi) hi = v;
+    if (v < lo) lo = v;
+  }
   if (usableEnergyMWh <= 0 || powerMW <= 0) return hi;
-  for (let it = 0; it < 40; it++) {
+  // Bisect between the day's own floor and ceiling rather than from zero — same
+  // absolute precision in fewer steps.
+  for (let it = 0; it < 20; it++) {
     const mid = (lo + hi) / 2;
     let e = 0;
-    for (const v of series) e += Math.min(powerMW, Math.max(0, v - mid));
+    for (let i = 0; i < n; i++) {
+      const d = series[i] - mid;
+      e += d > powerMW ? powerMW : d > 0 ? d : 0;
+    }
     if (e > usableEnergyMWh) lo = mid; else hi = mid;
   }
   return hi;

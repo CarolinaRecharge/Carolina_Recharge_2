@@ -476,24 +476,61 @@ Actual repository contents:
     charger-unit.png       ← Unused; retained from earlier revision
   /demo                    ← Site Energy Model demo, served at /demo/
     index.html               Page shell; tabs and controls
-    demo.css                 Own stylesheet, same brand tokens as styles.css
+    demo.css                 Own stylesheet — deliberately unbranded, see below
+    icon.svg                 Neutral favicon; NOT derived from the logo
     README.md                Module map, how to verify a change
-    /js                      ES modules — model, solver, charts, UI
+    /js                      ES modules — model, solver, worker, charts, UI
 ```
 
-### The demo subtree
+### The demo subtree — deliberately unbranded
+
 `demo/` is a separate deliverable that happens to live in this repository, served
 at **carolinarecharge.com/demo/** by whatever deploys the repository root —
-there is nothing to configure and no second project. It is still hand-coded with
-**no build step, no npm and no framework**, and it carries both required
-disclosures from §6 in its footer, so the §5.5 audit covers it unchanged. It has
-its own stylesheet rather than extending `styles.css` — a dense dashboard and a
-marketing page do not want the same rules — but it draws on the same tokens,
-type scale and UI patterns, so the two read as one brand.
+there is nothing to configure and no second project. It is hand-coded with **no
+build step, no npm and no framework**, in keeping with §9.
 
-It references `/images` directly rather than keeping copies, so the brand assets
-have one home. It is `noindex, nofollow` and nothing on the site links to it; it
-is reached by URL. Linking it from the nav is a decision, not an oversight.
+**It carries no Carolina Recharge branding, on purpose.** No logo, no company
+name, no contact block, no Montserrat, none of the §3 palette. This was a
+founder decision, and it is not drift to be tidied up: the demo models a
+100 MW Northern Virginia data-center campus, which has nothing to do with EV
+charging for Triad properties, and showing it under this brand confuses the
+audience for both. Its identity is the model. If you are about to "restore" the
+logo, don't — ask first.
+
+Two consequences follow, and they need a decision on the record:
+
+- **The §6 disclosures came off with the branding.** Both name the company, so
+  keeping them would have re-branded the page. In their place the footer carries
+  an unbranded equivalent of §6.1 — *"This model is not a professional
+  engineering deliverable and does not constitute engineering services…"* —
+  which preserves the licensure protection without asserting an identity. §6.2,
+  the equipment disclosure, is gone: it describes reselling EV charging hardware,
+  which this page neither mentions nor does. **If the demo is ever shown to a
+  customer as our work, both disclosures come back verbatim.**
+- **The §5.5 audit still passes over `demo/`.** The only `engineer` match is
+  inside that licensure sentence, and there is no leasing or independence
+  language. Keep running the audit repo-wide; it covers this subtree unchanged.
+
+The page is `noindex, nofollow` and nothing on the site links to it; it is
+reached by URL. Linking it from the nav would put unbranded content one click
+from the marketing site — a decision, not an oversight.
+
+### The demo's own conventions
+These are the demo's, not the brand's, and they do not apply to `index.html`:
+
+- **Type:** Inter for text, IBM Plex Mono for figures and labels.
+- **Colour:** a neutral graphite shell plus a chart palette validated for
+  colour-vision deficiency and contrast. Do not substitute brand hexes into the
+  charts — the slot ordering is what makes adjacent series distinguishable, and
+  it was chosen by running the validator, not by eye.
+- **Model runs in a Web Worker** (`js/worker.js`) so slider drags stay at 60 fps
+  while the model re-solves behind them. `js/runner.js` falls back to the main
+  thread if module workers are unavailable.
+- **Never build a hot-path record by assigning keys in a loop.** The per-hour
+  flow object and the per-day cost record are written as single object literals
+  in `solver.js` and `cost.js`. Doing it the other way puts them in dictionary
+  mode and costs a 6× slowdown across the run — that one detail was the
+  difference between 436 ms and 74 ms.
 
 ### Favicon
 `favicon.svg` reuses the **same Census boundary path** as the logo, filled rather than stroked (a 2px stroke vanishes at 16px) on a `--navy-dark` rounded tile, with the Triad node enlarged so it survives downscaling. It is a **derived asset, not the logo** — the no-recolor rule in §2 applies to the logo files, which are untouched.

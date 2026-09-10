@@ -10,8 +10,8 @@ import { buildTMY, poa } from './weather.js';
 import { deriveITCapacity, buildUtilization, pueAt } from './load.js';
 import { screenBackup } from './sizing.js';
 import { buildLifecycle, SCENARIOS } from './lifecycle.js';
-import { solveWindow } from './solver.js';
-import { costOf, gasPriceIn, dieselPriceIn, gasRentForMonth, capexEvents, fixedOMForMonth } from './cost.js';
+import { solveWindow, makeFlowBuffer } from './solver.js';
+import { costOf, makeCostRecord, gasPriceIn, dieselPriceIn, gasRentForMonth, capexEvents, fixedOMForMonth } from './cost.js';
 import { newBillingMonth, addHour, determinants, billFor, ratchetFloor, isSummer } from './tariff.js';
 import { rng, clamp, monthOfDay, DAYS_IN_MONTH, HOURS_PER_YEAR, crf } from './util.js';
 
@@ -74,7 +74,7 @@ export function buildDerived(inputs) {
 }
 
 /** Deterministic stress-event calendar (§4.5). */
-function buildEvents(inputs) {
+export function buildEvents(inputs) {
   const r = rng(inputs.seed ^ 0x1f2e3d4c);
   const gridOut = new Uint8Array(HOURS);
   const gasOut = new Uint8Array(HOURS);
@@ -133,10 +133,46 @@ export function runScenario(scenarioKey, inputs, derived, events) {
   const monthly = [];
   const summerHistory = [];
   const sampleDays = {};
+  let sampleCount = 0;
 
-  // Per-day scratch buffers, reused.
+  // The last full year at hourly resolution. 8,760 floats is small enough to
+  // carry back to the UI and it is what the duration curve and the hour-by-month
+  // heatmap are drawn from — both of which say things a monthly total cannot.
+  const FINAL_YEAR_START = HORIZON_MONTHS - 12;
+  const yearGrid = new Float32Array(HOURS_PER_YEAR);
+  const yearLoad = new Float32Array(HOURS_PER_YEAR);
+  const yearOnsite = new Float32Array(HOURS_PER_YEAR);
+  let yearIdx = 0;
+
+  // Per-day scratch buffers, reused across all 5,475 days.
+  const flowBuffer = makeFlowBuffer(24);
+  const costRecord = makeCostRecord();
   const load = new Float64Array(24), solar = new Float64Array(24), gridLimit = new Float64Array(24);
   const evGrid = new Uint8Array(24), evGas = new Uint8Array(24), evTest = new Uint8Array(24), evHour = new Uint8Array(24);
+
+  // The problem object is built once and mutated. Rebuilding it — eight nested
+  // literals — for each of the 5,475 simulated days cost more than solving them.
+  const rte = Math.sqrt(BESS.rte);
+  const problem = {
+    hours: 24, load, solar, gridLimit, buffer: flowBuffer,
+    islanded: false, gasAvailable: false,
+    events: { gridOut: evGrid, gasOut: evGas, dieselTest: evTest, eventHour: evHour },
+    assets: {
+      gas: { units: 0, unit: NG_BRIDGE },
+      diesel: { units: 0, unit: DF_BACKUP },
+      bess: { powerMW: 0, energyMWh: 0, socMin: BESS.socMin, socMax: BESS.socMax, rteCharge: rte, rteDischarge: rte },
+    },
+    reserve: {
+      stepMarginFrac: preset.stepSwingFracIT * (derived.mwIT / inputs.facilityPeakMW),
+      criticalFrac: preset.criticalFrac,
+      shedWindowMin: preset.shedWindowMin,
+      socFloorMWh: 0,
+      islandReserveMWh: 0,
+      dieselCountsAsReserve: inputs.dieselAsBridgeReserve,
+    },
+    prices: { gasPerMMBtu: 0, dieselPerMMBtu: 0 },
+  };
+  const islandReserveFull = (NG_BRIDGE.ratedKW / 1000) * (NG_BRIDGE.startTimeMin / 60);
 
   let hourIdx = 0;
   let dayIdx = 0;
@@ -172,50 +208,44 @@ export function runScenario(scenarioKey, inputs, derived, events) {
     const gasPrice = gasPriceIn(yearIndex);
     const dieselPrice = dieselPriceIn(yearIndex);
 
+    // Everything the solver reads that changes with the calendar, updated once
+    // a month rather than once a day.
+    problem.islanded = cfg.gridLimitMW <= 0;
+    problem.gasAvailable = cfg.gasUnits > 0 || cfg.gridAvailMW > 0;
+    problem.assets.gas.units = cfg.gasUnits;
+    problem.assets.diesel.units = cfg.dieselUnits;
+    problem.assets.bess.powerMW = cfg.bessMW;
+    problem.assets.bess.energyMWh = cfg.bessMWh;
+    problem.reserve.socFloorMWh = derived.screen.reservedEnergyMWh * cfg.itFrac;
+    problem.reserve.islandReserveMWh = cfg.gasUnits > 0 ? islandReserveFull : 0;
+    problem.prices.gasPerMMBtu = gasPrice;
+    problem.prices.dieselPerMMBtu = dieselPrice;
+    const gridOn = cfg.gridAvailMW > 0, backupOn = cfg.gasUnits > 0 || cfg.dieselUnits > 0;
+    const testOn = cfg.dieselUnits > 0, bessOn = cfg.bessMWh > 0;
+    const itFrac = cfg.itFrac, solarCap = cfg.solarMWdc, gridCap = cfg.gridLimitMW;
+    const shape = derived.shape, solarUnit = derived.solarPerMWdc;
+
     for (let d = 0; d < days; d++) {
       const tmyBase = (dayIdx % 365) * 24;
+      let dayPeak = agg.peakLoadMW;
       for (let h = 0; h < 24; h++) {
         const ti = tmyBase + h;
-        load[h] = derived.shape[ti] * cfg.itFrac;
-        solar[h] = derived.solarPerMWdc[ti] * cfg.solarMWdc;
-        gridLimit[h] = cfg.gridLimitMW;
+        const L = shape[ti] * itFrac;
+        load[h] = L;
+        solar[h] = solarUnit[ti] * solarCap;
+        gridLimit[h] = gridCap;
         const gi = hourIdx + h;
         // A grid outage only means something once the grid is there.
-        evGrid[h] = cfg.gridAvailMW > 0 ? events.gridOut[gi] : 0;
-        evGas[h] = cfg.gasUnits > 0 || cfg.dieselUnits > 0 ? events.gasOut[gi] : 0;
-        evTest[h] = cfg.dieselUnits > 0 ? events.dieselTest[gi] : 0;
+        evGrid[h] = gridOn ? events.gridOut[gi] : 0;
+        evGas[h] = backupOn ? events.gasOut[gi] : 0;
+        evTest[h] = testOn ? events.dieselTest[gi] : 0;
         evHour[h] = events.eventHour[gi];
-        if (load[h] > agg.peakLoadMW) agg.peakLoadMW = load[h];
+        if (L > dayPeak) dayPeak = L;
       }
-
-      const problem = {
-        hours: 24, load, solar, gridLimit,
-        islanded: cfg.gridLimitMW <= 0,
-        gasAvailable: cfg.gasUnits > 0 || cfg.gridAvailMW > 0,
-        events: { gridOut: evGrid, gasOut: evGas, dieselTest: evTest, eventHour: evHour },
-        assets: {
-          gas: { units: cfg.gasUnits, unit: NG_BRIDGE },
-          diesel: { units: cfg.dieselUnits, unit: DF_BACKUP },
-          bess: {
-            powerMW: cfg.bessMW, energyMWh: cfg.bessMWh,
-            socMin: BESS.socMin, socMax: BESS.socMax,
-            rteCharge: Math.sqrt(BESS.rte), rteDischarge: Math.sqrt(BESS.rte),
-          },
-        },
-        reserve: {
-          stepMarginFrac: preset.stepSwingFracIT * (derived.mwIT / inputs.facilityPeakMW),
-          criticalFrac: preset.criticalFrac,
-          shedWindowMin: preset.shedWindowMin,
-          socFloorMWh: derived.screen.reservedEnergyMWh * cfg.itFrac,
-          islandReserveMWh: cfg.gasUnits > 0
-            ? (NG_BRIDGE.ratedKW / 1000) * (NG_BRIDGE.startTimeMin / 60) : 0,
-          dieselCountsAsReserve: inputs.dieselAsBridgeReserve,
-        },
-        prices: { gasPerMMBtu: gasPrice, dieselPerMMBtu: dieselPrice },
-      };
+      agg.peakLoadMW = dayPeak;
 
       const flows = solveWindow(problem, state);
-      const c = costOf(flows, problem);
+      const c = costOf(flows, problem, costRecord);
 
       agg.gasFuel += c.gasFuel; agg.gasVarOM += c.gasVarOM;
       agg.gasFuelMMBtu += c.gasFuelMMBtu + c.dieselGasMMBtu; agg.dieselFuelMMBtu += c.dieselFuelMMBtu;
@@ -225,15 +255,32 @@ export function runScenario(scenarioKey, inputs, derived, events) {
       agg.unservedMWh += c.unservedMWh; agg.shedMWh += c.shedMWh; agg.curtailedMWh += c.curtailedMWh;
       agg.gasRunHours += c.gasRunHours; agg.dieselRunHours += c.dieselRunHours;
       agg.reserveShortHours += c.reserveShortHours; agg.co2Tonnes += c.co2Tonnes;
-      for (const f of flows) {
-        agg.loadMWh += f.load;
-        addHour(bm, f.grid);
-        if (cfg.bessMWh > 0) agg.minSOCfrac = Math.min(agg.minSOCfrac, f.soc / cfg.bessMWh);
-        if (f.diesel > 0) agg.dieselEventHours += 1;
+      // The billing accumulator is inlined: this is the innermost loop in the
+      // model, 525,600 iterations per scenario.
+      let loadMWh = 0, kWh = 0, peakKW = bm.peakKW, dslH = 0, minSOC = agg.minSOCfrac;
+      const keepYear = m >= FINAL_YEAR_START && yearIdx < HOURS_PER_YEAR;
+      for (let h = 0; h < 24; h++) {
+        const f = flows[h];
+        loadMWh += f.load;
+        const g = f.grid * 1000;
+        kWh += g;
+        if (g > peakKW) peakKW = g;
+        if (bessOn) { const sf = f.soc / cfg.bessMWh; if (sf < minSOC) minSOC = sf; }
+        if (f.diesel > 0) dslH++;
+        if (keepYear) {
+          yearGrid[yearIdx] = f.grid;
+          yearLoad[yearIdx] = f.load;
+          yearOnsite[yearIdx] = f.gas + f.solar + f.bessDischarge + f.diesel;
+          yearIdx++;
+        }
       }
+      agg.loadMWh += loadMWh;
+      agg.dieselEventHours += dslH;
+      agg.minSOCfrac = minSOC;
+      bm.kWh += kWh; bm.peakKW = peakKW; bm.hours += 24;
 
       // Keep a handful of days at full resolution for the dispatch chart.
-      captureSample(sampleDays, life, cfg, m, d, dayIdx, flows);
+      if (sampleCount < 4) sampleCount = captureSample(sampleDays, cfg, m, d, dayIdx, flows);
       hourIdx += 24;
       dayIdx += 1;
     }
@@ -266,24 +313,65 @@ export function runScenario(scenarioKey, inputs, derived, events) {
     });
   }
 
-  return summarize(scenarioKey, life, monthly, capexItems, derived, inputs, sampleDays);
+  return summarize(scenarioKey, life, monthly, capexItems, derived, inputs, sampleDays,
+    { grid: yearGrid, load: yearLoad, onsite: yearOnsite, hours: yearIdx });
 }
 
-function captureSample(store, life, cfg, month, day, dayIdx, flows) {
-  const want = [
-    ['bridge-summer', cfg.gasUnits > 0 && cfg.gridLimitMW <= 0 && cfg.itFrac >= 0.5 && (dayIdx % 365) > 190 && (dayIdx % 365) < 210],
-    ['bridge-event', cfg.gasUnits > 0 && cfg.gridLimitMW <= 0 && cfg.itFrac >= 0.5 && flows.some((f) => f.diesel > 0)],
-    ['grid-summer', cfg.gridLimitMW > 0 && cfg.itFrac === 1 && (dayIdx % 365) > 195 && (dayIdx % 365) < 215],
-    ['grid-outage', cfg.gridLimitMW > 0 && cfg.itFrac === 1 && flows.some((f) => f.diesel > 0)],
-  ];
-  for (const [key, ok] of want) {
-    if (ok && !store[key]) {
-      store[key] = { month, day, dayOfYear: dayIdx % 365, flows: flows.map((f) => ({ ...f })), cfg: { ...cfg } };
-    }
+/** Descending-sorted series, resampled to `points` — a load duration curve. */
+function durationCurve(series, n, points = 180) {
+  const copy = Array.prototype.slice.call(series, 0, n);
+  copy.sort((a, b) => b - a);
+  const out = [];
+  for (let i = 0; i < points; i++) out.push(copy[Math.min(n - 1, Math.round((i / (points - 1)) * (n - 1)))]);
+  return out;
+}
+
+/** Mean value by hour of day and month of year — a 12 x 24 grid. */
+function hourMonthGrid(series, n) {
+  const sum = [], count = [];
+  for (let mo = 0; mo < 12; mo++) { sum.push(new Float64Array(24)); count.push(new Float64Array(24)); }
+  for (let i = 0; i < n; i++) {
+    const mo = monthOfDay(Math.floor(i / 24));
+    const h = i % 24;
+    sum[mo][h] += series[i];
+    count[mo][h] += 1;
   }
+  return sum.map((row, mo) => Array.from(row, (v, h) => (count[mo][h] ? v / count[mo][h] : 0)));
 }
 
-function summarize(key, life, monthly, capexItems, derived, inputs, sampleDays) {
+/** Keeps one day of each interesting kind at full resolution, and returns how
+ *  many kinds have been found so the caller can stop asking. */
+function captureSample(store, cfg, month, day, dayIdx, flows) {
+  const doy = dayIdx % 365;
+  const island = cfg.gasUnits > 0 && cfg.gridLimitMW <= 0 && cfg.itFrac >= 0.5;
+  const gridFull = cfg.gridLimitMW > 0 && cfg.itFrac === 1;
+  let ranBackup = -1;
+  const backupRan = () => {
+    if (ranBackup < 0) {
+      ranBackup = 0;
+      for (let h = 0; h < flows.length; h++) if (flows[h].diesel > 0) { ranBackup = 1; break; }
+    }
+    return ranBackup === 1;
+  };
+
+  const take = (key, ok) => {
+    if (!ok || store[key]) return;
+    const copy = [];
+    for (let h = 0; h < flows.length; h++) copy.push({ ...flows[h] });
+    store[key] = { month, day, dayOfYear: doy, flows: copy, cfg: { ...cfg } };
+  };
+
+  if (!store['bridge-summer']) take('bridge-summer', island && doy > 190 && doy < 210);
+  if (!store['bridge-event']) take('bridge-event', island && backupRan());
+  if (!store['grid-summer']) take('grid-summer', gridFull && doy > 195 && doy < 215);
+  if (!store['grid-outage']) take('grid-outage', gridFull && backupRan());
+
+  let n = 0;
+  for (const k of ['bridge-summer', 'bridge-event', 'grid-summer', 'grid-outage']) if (store[k]) n++;
+  return n;
+}
+
+function summarize(key, life, monthly, capexItems, derived, inputs, sampleDays, finalYear) {
   const disc = Math.pow(1 + FINANCE.discountRatePct / 100, 1 / 12);
   let npvCost = 0, npvNet = 0, cum = 0;
   const cumulative = [], annual = [];
@@ -334,8 +422,17 @@ function summarize(key, life, monthly, capexItems, derived, inputs, sampleDays) 
   }
 
   const full = life.months[life.months.length - 1];
+  const n = finalYear.hours;
   return {
     key, life, monthly, annual, cumulative, capexItems, sampleDays,
+    finalYear: {
+      hours: n,
+      gridDuration: durationCurve(finalYear.grid, n),
+      loadDuration: durationCurve(finalYear.load, n),
+      onsiteDuration: durationCurve(finalYear.onsite, n),
+      gridHourMonth: hourMonthGrid(finalYear.grid, n),
+      gridPeak: n ? Math.max(...Array.prototype.slice.call(finalYear.grid, 0, n)) : 0,
+    },
     totals: tot,
     npvCost, npvNet,
     blendedPerMWh: tot.loadMWh > 0 ? tot.total / tot.loadMWh : 0,
@@ -506,6 +603,29 @@ export function runSweep(inputs, derived, events, contractPcts, retainedMWs) {
     }
   }
   return points;
+}
+
+/** Monthly weather, reduced for the assumptions panel. */
+export function weatherSummary(derived) {
+  const t = derived.tmy;
+  const rows = [];
+  for (let mo = 0; mo < 12; mo++) rows.push({ month: mo, tMin: 99, tMax: -99, tSum: 0, ghi: 0, poaSum: 0, n: 0 });
+  for (let doy = 0; doy < 365; doy++) {
+    const r = rows[monthOfDay(doy)];
+    for (let h = 0; h < 24; h++) {
+      const i = doy * 24 + h;
+      const T = t.temp[i];
+      if (T < r.tMin) r.tMin = T;
+      if (T > r.tMax) r.tMax = T;
+      r.tSum += T; r.n++;
+      r.ghi += t.ghi[i] / 1000;
+      r.poaSum += poa(t, i, SOLAR.tiltDeg, SOLAR.azimuthDeg) / 1000;
+    }
+  }
+  return rows.map((r) => ({
+    month: r.month, tMin: r.tMin, tMax: r.tMax, tMean: r.tSum / r.n,
+    ghiKWh: r.ghi, poaKWh: r.poaSum,
+  }));
 }
 
 /** §4.5 insurance panel — what the backup fleet costs, against what it avoids. */
