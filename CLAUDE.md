@@ -525,7 +525,8 @@ These are the demo's, not the brand's, and they do not apply to `index.html`:
   it was chosen by running the validator, not by eye.
 - **Model runs in a Web Worker** (`js/worker.js`) so slider drags stay at 60 fps
   while the model re-solves behind them. `js/runner.js` falls back to the main
-  thread if module workers are unavailable.
+  thread if module workers are unavailable, and carries the counters the Engine
+  tab draws — keep them accurate if you touch the queue.
 - **Never build a hot-path record by assigning keys in a loop.** The per-hour
   flow object and the per-day cost record are written as single object literals
   in `solver.js` and `cost.js`. Doing it the other way puts them in dictionary

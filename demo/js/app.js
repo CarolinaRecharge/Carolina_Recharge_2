@@ -12,7 +12,9 @@ import {
   NG_BRIDGE, DF_BACKUP, BESS, SOLAR, HORIZON_MONTHS, HORIZON_YEARS,
 } from './config.js';
 import { SCENARIOS } from './lifecycle.js';
+import { SCENARIO_KEYS, DERIVED_KEYS } from './session.js';
 import { createRunner } from './runner.js';
+import { renderPipeline } from './pipeline.js';
 import { money, num, int, MONTH_ABBR } from './util.js';
 import {
   PALETTE, renderLines, renderStackedArea, renderGroupedBars, renderStackedBarsH,
@@ -54,6 +56,10 @@ const runner = createRunner((payload) => {
 }, (err) => {
   $('#tick').textContent = 'model error';
   console.error(err);
+}, () => {
+  // Stats tick on every queue transition, not just on an answer — that is the
+  // point of the Engine tab, so it repaints out of band from the model.
+  if (active === 'engine' && mounted.engine) paintEngine($('#p-engine'));
 });
 
 function sweepFingerprint() {
@@ -160,7 +166,7 @@ function syncControls() {
 const TAB_LIST = [
   ['overview', 'Overview'], ['lifecycle', 'Lifecycle'], ['dispatch', 'Dispatch'],
   ['economics', 'Economics'], ['reliability', 'Reliability'], ['tradeoff', 'Tradeoff'],
-  ['assumptions', 'Assumptions'],
+  ['assumptions', 'Assumptions'], ['engine', 'Engine'],
 ];
 
 let frameQueued = false;
@@ -1033,6 +1039,126 @@ TABS.assumptions = {
     </tbody></table>`;
   },
 };
+
+// ══════════════════════════════════════════════════════════════════ ENGINE
+const CONTROL_LABELS = {
+  workloadPreset: 'Workload preset', gridEnergizationMonth: 'Grid energization',
+  hybridFirstPowerMonth: 'First power', contractedDemandPct: 'Contracted demand',
+  bessMWPerPhase: 'Battery per phase', bessHours: 'Battery duration',
+  retainedGasMW: 'Retained gas', solarMWdc: 'Solar',
+  dieselAsBridgeReserve: 'Backup as bridge reserve',
+};
+
+TABS.engine = {
+  mount: () => `
+    <div class="card">
+      <div class="eyebrow">Live</div><h2 class="sec">The request path, while you drag</h2>
+      <p class="lede">
+        Drag any control on the rail above and watch this. A slider emits far more asks than any model can
+        answer, so three mechanisms sit between the thumb and the numbers. All three are invisible if you only
+        look at the output, which is why they are drawn here with their real counters on them.
+      </p>
+      <div class="viz" id="viz-pipe" style="margin-top:16px"></div>
+      <div class="grid3" style="margin-top:18px" id="engine-kpis"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h3 class="sub">Model time, last 60 answers</h3>
+        <p class="note">Model time in blue, end-to-end wait including queueing behind it. A gap between the two
+          is the queue doing its job.</p>
+        <div class="viz" id="viz-engine-hist" style="margin-top:10px"></div><div id="leg-engine-hist"></div>
+      </div>
+      <div class="card">
+        <h3 class="sub">Why it is fast enough to be live</h3>
+        <div class="callout c-neutral" style="margin-top:8px" id="engine-why"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">Dependency matrix</div><h2 class="sec">What each control actually invalidates</h2>
+      <p class="lede">
+        This is the third mechanism, and the one that makes the cheap controls feel instant. Each scenario
+        declares the inputs it depends on; moving a control re-solves only the scenarios whose fingerprint
+        changed. Everything else is served from cache in microseconds.
+      </p>
+      <div class="tblwrap" style="margin-top:14px" id="dep-matrix"></div>
+      <p class="note" style="margin-top:10px">
+        Weather and load are shared across all four scenarios, so a control that touches them — the workload
+        preset — forces a full rebuild. That is the one genuinely expensive control on the page, and the rail
+        says so when you move it.
+      </p>
+    </div>`,
+
+  paint(host) {
+    const s = runner.stats;
+    const scen = (s.lastRecomputed || []).filter((x) => SCENARIOS.some((v) => v.key === x));
+    renderPipeline($('#viz-pipe', host), s, { recomputedScenarios: scen });
+
+    const hz = s.recent.length > 1
+      ? 1000 / (s.recent.slice(-12).reduce((a, r) => a + r.wait, 0) / Math.min(12, s.recent.length))
+      : 0;
+    $('#engine-kpis', host).innerHTML = [
+      ['Transport', s.transport, s.transport === 'worker'
+        ? 'The model runs off the main thread, so the slider thumb never waits on arithmetic.'
+        : 'Module workers unavailable here — running on the main thread via the fallback path.'],
+      ['Asks in · answers out', `${int(s.requested)} · ${int(s.completed)}`,
+        `<b>${int(s.dropped)}</b> asks were superseded before they ever ran. Dropping them is what keeps the
+         numbers on the thumb instead of a queue behind it.`],
+      ['Sustained rate', hz > 0 ? `${num(hz, 1)}/s` : '—',
+        'Answers per second over the last dozen runs, end to end.'],
+    ].map(([k, v, d]) => `<div class="kpi"><div class="kpi-k">${k}</div>
+      <div class="kpi-row"><div class="kpi-v" style="font-size:20px">${v}</div></div>
+      <div class="kpi-d">${d}</div></div>`).join('');
+
+    if (s.recent.length > 1) {
+      const xs = s.recent.map((_, i) => i);
+      const series = [
+        { label: 'Model time', color: D.grid, values: s.recent.map((r) => r.ms) },
+        { label: 'End to end', color: D.gas, values: s.recent.map((r) => r.wait) },
+      ];
+      renderLines($('#viz-engine-hist', host), {
+        x: xs, series, height: 190, yMin: 0, directLabels: false,
+        xTicks: [0, Math.floor(xs.length / 2), xs.length - 1].map((v) => ({ v, label: v === xs.length - 1 ? 'now' : `−${xs.length - 1 - v}` })),
+        yFmt: (v) => `${num(v, 0)}`, tipFmt: (v) => `${num(v, 0)} ms`, yLabel: 'ms',
+        xLabelFmt: (i) => (i === xs.length - 1 ? 'most recent' : `${xs.length - 1 - i} runs ago`),
+      });
+      $('#leg-engine-hist', host).innerHTML = legend(series);
+    } else {
+      $('#viz-engine-hist', host).innerHTML = '<div class="boot">Move a control to fill this</div>';
+    }
+
+    $('#engine-why', host).innerHTML = `
+      <b>74 ms for the whole model</b> is what makes any of this possible, and almost all of it came from one
+      detail. The per-hour dispatch record and the per-day cost record used to be built by assigning keys in a
+      loop, which leaves an object in V8's dictionary mode. The run touches those objects
+      <b>${int(525600)}</b> times per scenario, so every field read took the slow path. Written as single
+      object literals instead, the same run went from <b>436 ms to 74 ms</b> with byte-identical output.<br><br>
+      The rest was ordinary: indexed loops instead of <span class="mono">for…of</span> over typed arrays, three
+      per-day array allocations hoisted out of the solver, and the eight-object problem literal built once per
+      scenario rather than 5,475 times.`;
+
+    const rows = Object.keys(CONTROL_LABELS).map((k) => {
+      const hitsDerived = DERIVED_KEYS.includes(k);
+      const cells = SCENARIOS.map((sc) => {
+        const hit = SCENARIO_KEYS[sc.key].includes(k);
+        return `<td style="color:${hit ? PALETTE.status.warn : PALETTE.status.pass};font-weight:650">
+          ${hit ? 're-solve' : 'cached'}</td>`;
+      }).join('');
+      return `<tr><td>${CONTROL_LABELS[k]}</td>${cells}
+        <td style="font-weight:650;color:${hitsDerived ? PALETTE.status.fail : PALETTE.ink.muted}">
+          ${hitsDerived ? 'rebuild' : '—'}</td></tr>`;
+    }).join('');
+    $('#dep-matrix', host).innerHTML = `<table class="data"><thead><tr><th>Control</th>
+      ${SCENARIOS.map((sc) => `<th>${dot(SC[sc.key])}${sc.short}</th>`).join('')}
+      <th>Weather + load</th></tr></thead><tbody>${rows}</tbody></table>`;
+  },
+};
+
+function paintEngine(host) {
+  if (!host || host.hidden) return;
+  TABS.engine.paint(host);
+}
 
 // ── Export ──────────────────────────────────────────────────────────────────
 function exportJSON() {

@@ -19,7 +19,7 @@ const COMMON = ['workloadPreset', 'seed', 'facilityPeakMW', 'gridEnergizationMon
 const WITH_GAS = [...COMMON, 'hybridFirstPowerMonth', 'gasOverlapMonths', 'dieselAsBridgeReserve'];
 const WITH_STORAGE = [...WITH_GAS, 'bessMWPerPhase', 'bessHours', 'solarMWdc'];
 
-const SCENARIO_KEYS = {
+export const SCENARIO_KEYS = {
   wait: COMMON,
   bridge: WITH_GAS,
   hybrid: WITH_STORAGE,
@@ -67,4 +67,4 @@ export function createSession() {
   };
 }
 
-export { HORIZON_MONTHS };
+export { HORIZON_MONTHS, DERIVED_KEYS, EVENT_KEYS };

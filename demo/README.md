@@ -61,6 +61,7 @@ demo/
     runner.js     request coalescing, with a main-thread fallback
     charts.js     hand-rolled SVG charts and the validated palette
     schematic.js  the live single-line diagram
+    pipeline.js   the live request-path diagram on the Engine tab
     app.js        UI wiring only; no arithmetic that matters
 ```
 
@@ -79,7 +80,9 @@ the work:
    reports which, and how long it took, on every update.
 
 Measured on a mid-range laptop: a full four-scenario re-solve is ~75 ms warm, so
-the coarse controls land 4–8 updates a second and the cheap ones 12–15.
+the coarse controls land 4–8 updates a second and the cheap ones 12–15. The
+Engine tab reports all of this live — if a change makes the page feel sluggish,
+that tab will say which of the three mechanisms stopped doing its job.
 
 **A performance trap worth knowing about.** The per-hour flow record and the
 per-day cost record are written as single object literals. Building either by
@@ -112,7 +115,10 @@ peak. **Dispatch** is one day hour by hour, plus a grid-import duration curve an
 an hour-by-month heatmap of the final year — the two charts that show what the
 battery does to the billed peak. **Economics**, **Reliability** and **Tradeoff**
 carry the cost engine, the §4.6 checks and the §6 frontier. **Assumptions**
-renders the open-items register and the synthesised weather.
+renders the open-items register and the synthesised weather. **Engine** draws
+the request path itself — the coalescing queue, the transport, the dependency
+cache — with its real counters on it, so dragging a control shows you the queue
+filling, superseding and draining rather than leaving you to trust that it does.
 
 ## Keeping the demo honest
 
